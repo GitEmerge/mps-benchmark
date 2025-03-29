@@ -12,7 +12,7 @@ def print_mem(tag=""):
     max_allocated = torch.mps.driver_allocated_memory()
     print(f"[{tag}] 🧠 MPS allocated: {allocated / (1024 ** 2):.2f} MB | Driver: {max_allocated / (1024 ** 2):.2f} MB")
 
-def run_benchmark(matrix_size=1024, iterations=100):
+def run_benchmark(matrix_size=512, iterations=25):
     print("========== PyTorch MPS FP16 Benchmark ==========")
     print(f"Platform: {platform.platform()}")
     print(f"Python version: {platform.python_version()}")
@@ -42,11 +42,11 @@ def run_benchmark(matrix_size=1024, iterations=100):
         raise RuntimeError(f"❌ Failed to allocate tensors on MPS: {e}")
     print("✅ Tensors allocated successfully.\n")
 
-    print("🔥 Warming up (10 iterations)...")
-    for i in range(10):
+    print("🔥 Warming up (5 iterations)...")
+    for i in range(5):
         _ = torch.matmul(a, b)
         torch.mps.synchronize()
-        print_mem(f"Warm-up {i+1}/10")
+        print_mem(f"Warm-up {i+1}/5")
     print("✅ Warm-up complete.\n")
 
     # 🧹 Clean up after warm-up
@@ -100,10 +100,10 @@ def run_benchmark(matrix_size=1024, iterations=100):
 
 def try_auto_scale():
     os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
-    for size in [4096, 3072, 2048, 1024]:
+    for size in [4096, 3072, 2048, 1024, 768, 512]:
         print(f"\n🧪 Trying matrix size: {size}x{size}")
         try:
-            run_benchmark(matrix_size=size, iterations=100)
+            run_benchmark(matrix_size=size, iterations=25)
             print(f"✅ Success with matrix size: {size}")
             return
         except RuntimeError as e:
