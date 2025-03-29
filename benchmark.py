@@ -12,7 +12,7 @@ def print_mem(tag=""):
     max_allocated = torch.mps.driver_allocated_memory()
     print(f"[{tag}] 🧠 MPS allocated: {allocated / (1024 ** 2):.2f} MB | Driver: {max_allocated / (1024 ** 2):.2f} MB")
 
-def benchmark_fp16_mps(matrix_size=2048, iterations=100):
+def run_benchmark(matrix_size=1024, iterations=100):
     print("========== PyTorch MPS FP16 Benchmark ==========")
     print(f"Platform: {platform.platform()}")
     print(f"Python version: {platform.python_version()}")
@@ -49,7 +49,7 @@ def benchmark_fp16_mps(matrix_size=2048, iterations=100):
         print_mem(f"Warm-up {i+1}/10")
     print("✅ Warm-up complete.\n")
 
-    print("🧹 Cleaning up after warm-up...")
+    # 🧹 Clean up after warm-up
     del _
     torch.mps.empty_cache()
     gc.collect()
@@ -98,10 +98,26 @@ def benchmark_fp16_mps(matrix_size=2048, iterations=100):
     with open(CHECKSUM_PATH, "w") as f:
         f.write(f"{checksum:.4f}\n")
 
+def try_auto_scale():
+    os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
+    for size in [4096, 3072, 2048, 1024]:
+        print(f"\n🧪 Trying matrix size: {size}x{size}")
+        try:
+            run_benchmark(matrix_size=size, iterations=100)
+            print(f"✅ Success with matrix size: {size}")
+            return
+        except RuntimeError as e:
+            if "out of memory" in str(e).lower():
+                print(f"⚠️ Matrix {size}x{size} too large. Trying smaller size...")
+                torch.mps.empty_cache()
+                gc.collect()
+            else:
+                raise
+    raise RuntimeError("❌ All tested matrix sizes failed due to OOM or other errors.")
+
 if __name__ == "__main__":
     try:
-        os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
-        benchmark_fp16_mps()
+        try_auto_scale()
     except Exception as e:
         print(f"[ERROR] {e}", file=sys.stderr)
         sys.exit(1)
