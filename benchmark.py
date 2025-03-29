@@ -1,34 +1,50 @@
 import torch
 import time
 import sys
+import platform
 
-def benchmark_fp16_mps(matrix_size=4096, iterations=1000):
+def benchmark_fp16_mps(matrix_size=4096, iterations=100):
+    print("========== PyTorch MPS FP16 Benchmark ==========")
+    print(f"Platform: {platform.platform()}")
+    print(f"Python version: {platform.python_version()}")
+    print(f"Torch version: {torch.__version__}")
+    print(f"MPS available: {torch.backends.mps.is_available()}")
+    print(f"MPS built: {torch.backends.mps.is_built()}")
+
     if not torch.backends.mps.is_available():
-        raise RuntimeError("MPS is not available on this system.")
+        raise RuntimeError("❌ MPS is not available on this system.")
     if not torch.backends.mps.is_built():
-        raise RuntimeError("PyTorch is not built with MPS support.")
+        raise RuntimeError("❌ PyTorch is not built with MPS support.")
 
     device = torch.device("mps")
     dtype = torch.float16
 
-    print(f"Benchmarking FP16 matmul on MPS ({matrix_size}x{matrix_size}) for {iterations} iterations...")
+    print(f"\n✅ Running benchmark on device: {device}")
+    print(f"Matrix size: {matrix_size}x{matrix_size}")
+    print(f"Iterations: {iterations}")
+    print(f"Data type: {dtype}")
+    print("===============================================\n")
 
-    # Create two large FP16 matrices on MPS
+    print("📦 Allocating input tensors on MPS...")
     try:
         a = torch.randn((matrix_size, matrix_size), dtype=dtype, device=device)
         b = torch.randn((matrix_size, matrix_size), dtype=dtype, device=device)
     except RuntimeError as e:
-        raise RuntimeError(f"Failed to allocate tensors on MPS: {e}")
+        raise RuntimeError(f"❌ Failed to allocate tensors on MPS: {e}")
+    print("✅ Tensors allocated successfully.\n")
 
-    # Warm-up
-    for _ in range(10):
-        torch.matmul(a, b)
+    print("🔥 Warming up (10 iterations)...")
+    for i in range(10):
+        _ = torch.matmul(a, b)
     torch.mps.synchronize()
+    print("✅ Warm-up complete.\n")
 
-    # Benchmark
+    print("⏱️ Starting benchmark...")
     start_time = time.time()
-    for _ in range(iterations):
-        c = torch.matmul(a, b)
+    for i in range(iterations):
+        if i % 10 == 0:
+            print(f"➡️  Iteration {i+1}/{iterations}...")
+        _ = torch.matmul(a, b)
     torch.mps.synchronize()
     end_time = time.time()
 
@@ -36,9 +52,12 @@ def benchmark_fp16_mps(matrix_size=4096, iterations=1000):
     time_per_iter = total_time / iterations
     gflops = 2 * (matrix_size ** 3) * iterations / (total_time * 1e9)
 
-    print(f"Total time: {total_time:.4f} sec")
-    print(f"Average time per iteration: {time_per_iter:.6f} sec")
-    print(f"Estimated throughput: {gflops:.2f} GFLOPS (FP16)")
+    print("\n📊 Benchmark results:")
+    print(f"🕒 Total time: {total_time:.4f} seconds")
+    print(f"⚡ Average time per iteration: {time_per_iter:.6f} seconds")
+    print(f"🚀 Estimated throughput: {gflops:.2f} GFLOPS (FP16)")
+    print("✅ Benchmark completed successfully.")
+    print("===============================================\n")
 
 if __name__ == "__main__":
     try:
