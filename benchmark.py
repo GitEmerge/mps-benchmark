@@ -3,6 +3,8 @@ import time
 import sys
 import platform
 
+CHECKSUM_PATH = ".last_checksum.txt"
+
 def benchmark_fp16_mps(matrix_size=4096, iterations=100):
     print("========== PyTorch MPS FP16 Benchmark ==========")
     print(f"Platform: {platform.platform()}")
@@ -48,15 +50,13 @@ def benchmark_fp16_mps(matrix_size=4096, iterations=100):
         if i % 10 == 0:
             print(f"➡️  Iteration {i+1}/{iterations}...")
         c = torch.matmul(a, b)
-        
-        # Materialize computation by moving result to CPU
-        c_cpu = c.cpu()
+        checksum += torch.sum(c.float()).item()  # Convert to float32 before summing
 
-        # Do actual computation with result to prevent optimization
-        checksum += c_cpu[0, 0].item()
-
-    end_time = time.time()
     torch.mps.synchronize()
+    end_time = time.time()
+
+    if not torch.isfinite(torch.tensor(checksum)):
+        raise RuntimeError("❌ Checksum is not finite (inf or NaN). Accumulation may have overflowed.")
 
     total_time = end_time - start_time
     time_per_iter = total_time / iterations
@@ -66,9 +66,12 @@ def benchmark_fp16_mps(matrix_size=4096, iterations=100):
     print(f"🕒 Total time: {total_time:.4f} seconds")
     print(f"⚡ Average time per iteration: {time_per_iter:.6f} seconds")
     print(f"🚀 Estimated throughput: {gflops:.2f} GFLOPS (FP16)")
-    print(f"🧮 Sanity check (sum of c[0,0] values): {checksum:.4f}")
+    print(f"🧮 Sanity check (sum of all c values): {checksum:.4f}")
     print("✅ Benchmark completed successfully.")
     print("===============================================\n")
+
+    with open(CHECKSUM_PATH, "w") as f:
+        f.write(f"{checksum:.4f}\n")
 
 if __name__ == "__main__":
     try:
