@@ -2,7 +2,7 @@ import torch
 import time
 import sys
 
-def benchmark_fp16_mps(matrix_size=4096, iterations=10):
+def benchmark_fp16_mps(matrix_size=4096, iterations=1000):
     if not torch.backends.mps.is_available():
         raise RuntimeError("MPS is not available on this system.")
     if not torch.backends.mps.is_built():
