@@ -34,17 +34,23 @@ def benchmark_fp16_mps(matrix_size=4096, iterations=100):
     print("✅ Tensors allocated successfully.\n")
 
     print("🔥 Warming up (10 iterations)...")
-    for i in range(10):
+    for _ in range(10):
         _ = torch.matmul(a, b)
     torch.mps.synchronize()
     print("✅ Warm-up complete.\n")
 
     print("⏱️ Starting benchmark...")
+    torch.mps.synchronize()
     start_time = time.time()
+
+    # Force materialization to prevent lazy eval
+    checksum = 0.0
     for i in range(iterations):
         if i % 10 == 0:
             print(f"➡️  Iteration {i+1}/{iterations}...")
-        _ = torch.matmul(a, b)
+        c = torch.matmul(a, b)
+        checksum += c[0, 0].item()  # Forces computation and memory transfer
+
     torch.mps.synchronize()
     end_time = time.time()
 
@@ -56,6 +62,7 @@ def benchmark_fp16_mps(matrix_size=4096, iterations=100):
     print(f"🕒 Total time: {total_time:.4f} seconds")
     print(f"⚡ Average time per iteration: {time_per_iter:.6f} seconds")
     print(f"🚀 Estimated throughput: {gflops:.2f} GFLOPS (FP16)")
+    print(f"🧮 Sanity check (sum of c[0,0] values): {checksum:.4f}")
     print("✅ Benchmark completed successfully.")
     print("===============================================\n")
 
