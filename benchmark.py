@@ -7,6 +7,11 @@ import gc
 
 CHECKSUM_PATH = ".last_checksum.txt"
 
+def print_mem(tag=""):
+    allocated = torch.mps.current_allocated_memory()
+    max_allocated = torch.mps.driver_allocated_memory()
+    print(f"[{tag}] 🧠 MPS allocated: {allocated / (1024 ** 2):.2f} MB | Driver: {max_allocated / (1024 ** 2):.2f} MB")
+
 def benchmark_fp16_mps(matrix_size=2048, iterations=100):
     print("========== PyTorch MPS FP16 Benchmark ==========")
     print(f"Platform: {platform.platform()}")
@@ -38,33 +43,39 @@ def benchmark_fp16_mps(matrix_size=2048, iterations=100):
     print("✅ Tensors allocated successfully.\n")
 
     print("🔥 Warming up (10 iterations)...")
-    for _ in range(10):
+    for i in range(10):
         _ = torch.matmul(a, b)
-    torch.mps.synchronize()
+        torch.mps.synchronize()
+        print_mem(f"Warm-up {i+1}/10")
     print("✅ Warm-up complete.\n")
 
-    # 🧹 Clean up memory after warm-up
+    print("🧹 Cleaning up after warm-up...")
+    del _
     torch.mps.empty_cache()
     gc.collect()
+    print_mem("Post-warmup cleanup")
 
-    print("⏱️ Starting benchmark...")
+    print("\n⏱️ Starting benchmark...")
     torch.mps.synchronize()
     start_time = time.time()
 
     checksum = 0.0
     for i in range(iterations):
-        if i % 10 == 0:
-            print(f"➡️  Iteration {i+1}/{iterations}...")
+        print(f"\n➡️  Iteration {i+1}/{iterations} starting...")
         try:
             c = torch.matmul(a, b)
-            checksum += torch.sum(c.float()).item()  # Convert to float32 to avoid inf
+            torch.mps.synchronize()
+            checksum += torch.sum(c.float()).item()
+            print_mem(f"After matmul {i+1}")
         except RuntimeError as e:
             print(f"❌ Error during iteration {i+1}: {e}", file=sys.stderr)
             raise e
         finally:
-            del c
+            if 'c' in locals():
+                del c
             torch.mps.empty_cache()
             gc.collect()
+            print_mem(f"After cleanup {i+1}")
 
     torch.mps.synchronize()
     end_time = time.time()
@@ -89,7 +100,6 @@ def benchmark_fp16_mps(matrix_size=2048, iterations=100):
 
 if __name__ == "__main__":
     try:
-        # Optional: disable memory cap on MPS
         os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
         benchmark_fp16_mps()
     except Exception as e:
