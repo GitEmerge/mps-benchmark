@@ -43,16 +43,20 @@ def benchmark_fp16_mps(matrix_size=4096, iterations=100):
     torch.mps.synchronize()
     start_time = time.time()
 
-    # Force materialization to prevent lazy eval
     checksum = 0.0
     for i in range(iterations):
         if i % 10 == 0:
             print(f"➡️  Iteration {i+1}/{iterations}...")
         c = torch.matmul(a, b)
-        checksum += c[0, 0].item()  # Forces computation and memory transfer
+        
+        # Materialize computation by moving result to CPU
+        c_cpu = c.cpu()
 
-    torch.mps.synchronize()
+        # Do actual computation with result to prevent optimization
+        checksum += c_cpu[0, 0].item()
+
     end_time = time.time()
+    torch.mps.synchronize()
 
     total_time = end_time - start_time
     time_per_iter = total_time / iterations
