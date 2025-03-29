@@ -2,10 +2,11 @@ import torch
 import time
 import sys
 import platform
+import os
 
 CHECKSUM_PATH = ".last_checksum.txt"
 
-def benchmark_fp16_mps(matrix_size=4096, iterations=100):
+def benchmark_fp16_mps(matrix_size=2048, iterations=100):
     print("========== PyTorch MPS FP16 Benchmark ==========")
     print(f"Platform: {platform.platform()}")
     print(f"Python version: {platform.python_version()}")
@@ -50,7 +51,7 @@ def benchmark_fp16_mps(matrix_size=4096, iterations=100):
         if i % 10 == 0:
             print(f"➡️  Iteration {i+1}/{iterations}...")
         c = torch.matmul(a, b)
-        checksum += torch.sum(c.float()).item()  # Convert to float32 before summing
+        checksum += torch.sum(c.float()).item()  # Convert to float32 to avoid inf
 
     torch.mps.synchronize()
     end_time = time.time()
@@ -75,6 +76,8 @@ def benchmark_fp16_mps(matrix_size=4096, iterations=100):
 
 if __name__ == "__main__":
     try:
+        # Optional: Disable MPS memory cap (safe on GitHub Actions, not always on local Mac)
+        os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
         benchmark_fp16_mps()
     except Exception as e:
         print(f"[ERROR] {e}", file=sys.stderr)
