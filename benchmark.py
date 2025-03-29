@@ -43,6 +43,10 @@ def benchmark_fp16_mps(matrix_size=2048, iterations=100):
     torch.mps.synchronize()
     print("✅ Warm-up complete.\n")
 
+    # 🧹 Clean up memory after warm-up
+    torch.mps.empty_cache()
+    gc.collect()
+
     print("⏱️ Starting benchmark...")
     torch.mps.synchronize()
     start_time = time.time()
@@ -53,7 +57,7 @@ def benchmark_fp16_mps(matrix_size=2048, iterations=100):
             print(f"➡️  Iteration {i+1}/{iterations}...")
         try:
             c = torch.matmul(a, b)
-            checksum += torch.sum(c.float()).item()
+            checksum += torch.sum(c.float()).item()  # Convert to float32 to avoid inf
         except RuntimeError as e:
             print(f"❌ Error during iteration {i+1}: {e}", file=sys.stderr)
             raise e
@@ -85,6 +89,7 @@ def benchmark_fp16_mps(matrix_size=2048, iterations=100):
 
 if __name__ == "__main__":
     try:
+        # Optional: disable memory cap on MPS
         os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
         benchmark_fp16_mps()
     except Exception as e:
